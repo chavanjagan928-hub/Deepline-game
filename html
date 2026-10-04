@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deepline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #d6eeee;
+    --ink: #0b3248;
+    --muted: #3f6879;
+    --display: 'Bricolage Grotesque', 'Trebuchet MS', system-ui, sans-serif;
+    --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #04141d;
+      --ink: #d8f3f0;
+      --muted: #84a9b7;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #04141d;
+    --ink: #d8f3f0;
+    --muted: #84a9b7;
+  }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    height: 100%;
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--body);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 12px 16px;
+  }
+  header {
+    width: min(100%, 560px);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  h1 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(1.6rem, 6vw, 2.3rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .scores { display: flex; gap: 20px; font-size: .95rem; color: var(--muted); }
+  .scores span { display: flex; align-items: baseline; gap: 6px; }
+  .scores b {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 1.6rem;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    min-width: 1.5ch;
+    text-align: right;
+  }
+  .stage {
+    position: relative;
+    width: min(100%, 560px, max(240px, calc(100dvh - 210px)));
+    aspect-ratio: 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #06202e;
+    box-shadow: 0 0 0 1px rgba(159, 240, 227, .22), 0 24px 48px -24px rgba(4, 20, 31, .7);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  canvas { display: block; touch-action: none; }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    text-align: center;
+    color: #e9fbf8;
+    background: rgba(4, 20, 31, .64);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+  .overlay[hidden] { display: none; }
+  .overlay h2 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(1.8rem, 7vw, 2.6rem);
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+  .overlay p {
+    margin: 0 0 8px;
+    max-width: 32ch;
+    font-size: 1rem;
+    line-height: 1.45;
+    color: #bfe3e0;
+  }
+  .overlay button {
+    font: inherit;
+    font-weight: 600;
+    padding: 12px 24px;
+    border: 0;
+    border-radius: 999px;
+    background: #9ff0e3;
+    color: #04141d;
+    cursor: pointer;
+    transition: transform .12s ease;
+  }
+  .overlay button:hover { transform: scale(1.04); }
+  .overlay button:active { transform: scale(.98); }
+  .overlay button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .hint {
+    margin: 0;
+    max-width: 52ch;
+    text-align: center;
+    font-size: .9rem;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .overlay button { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <h1>Deepline</h1>
+    <div class="scores">
+      <span>Score <b id="score">0</b></span>
+      <span>Best <b id="best">0</b></span>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="c" aria-label="Deepline game board"></canvas>
+    <div class="overlay" id="overlay" role="status">
+      <h2 id="ovTitle">Deepline</h2>
+      <p id="ovText">Guide the eel to the glowing plankton. Don't touch the walls or your own tail.</p>
+      <button id="ovBtn" type="button">Start swimming</button>
+    </div>
+  </div>
+
+  <p class="hint">Steer with the arrow keys or WASD, or swipe on the board. Space pauses. Golden plankton is worth 5 but fades fast.</p>
+</main>
+
+<script>
+(() => {
+  const N = 18;
+  const BONUS_MS = 6000;
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const stage = document.getElementById('stage');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const overlay = document.getElementById('overlay');
+  const ovTitle = document.getElementById('ovTitle');
+  const ovText = document.getElementById('ovText');
+  const ovBtn = document.getElementById('ovBtn');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let size = 0, cell = 0, dpr = 1;
+  let snake, prev, dir, queue, food, bonus;
+  let score = 0, best = 0, tickMs = 150;
+  let state = 'ready'; // ready | playing | paused | over
+  let lastTick = 0, lastT = 1, pausedAt = 0, lastFrame = 0;
+  let newBest = false;
+
+  try { best = parseInt(localStorage.getItem('deepline-best'), 10) || 0; } catch (e) { best = 0; }
+  bestEl.textContent = best;
+
+  const bubbles = Array.from({ length: 14 }, () => ({
+    x: Math.random(), y: Math.random(),
+    r: 0.1 + Math.random() * 0.22, s: 0.02 + Math.random() * 0.04
+  }));
+
+  function resize() {
+    const w = stage.clientWidth;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    size = w;
+    cell = size / N;
+    canvas.width = canvas.height = Math.round(w * dpr);
+    canvas.style.width = canvas.style.height = w + 'px';
+  }
+
+  function spawn() {
+    const taken = new Set(snake.map(s => s.x + ',' + s.y));
+    if (food) taken.add(food.x + ',' + food.y);
+    if (bonus) taken.add(bonus.x + ',' + bonus.y);
+    const free = [];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (!taken.has(x + ',' + y)) free.push({ x, y });
+    }
+    return free.length ? free[Math.floor(Math.random() * free.length)] : null;
+  }
+
+  function updateScore() { scoreEl.textContent = score; bestEl.textContent = best; }
+
+  function reset() {
+    const my = Math.floor(N / 2);
+    snake = [{ x: 5, y: my }, { x: 4, y: my }, { x: 3, y: my }];
+    prev = snake.map(s => ({ x: s.x, y: s.y }));
+    dir = { x: 1, y: 0 };
+    queue = [];
+    score = 0;
+    tickMs = 150;
+    bonus = null;
+    food = null;
+    food = spawn();
+    lastT = 1;
+    newBest = false;
+    updateScore();
+  }
+
+  function showOverlay(title, text, btn) {
+    ovTitle.textContent = title;
+    ovText.textContent = text;
+    ovBtn.textContent = btn;
+    overlay.hidden = false;
+    ovBtn.focus({ preventScroll: true });
+  }
+
+  function start() {
+    if (state === 'over') reset();
+    state = 'playing';
+    lastTick = performance.now();
+    lastT = 0;
+    overlay.hidden = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+
+  function pause() {
+    if (state !== 'playing') return;
+    state = 'paused';
+    pausedAt = performance.now();
+    showOverlay('Paused', 'Take a breath. The plankton will wait.', 'Resume');
+  }
+
+  function resume() {
+    if (state !== 'paused') return;
+    const now = performance.now();
+    if (bonus) bonus.born += now - pausedAt;
+    lastTick = now - lastT * tickMs;
+    state = 'playing';
+    overlay.hidden = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+
+  function gameOver() {
+    state = 'over';
+    lastT = 1;
+    if (score > best) {
+      best = score;
+      newBest = true;
+      try { localStorage.setItem('deepline-best', String(best)); } catch (e) {}
+    }
+    updateScore();
+    const msg = newBest && score > 0
+      ? 'Final score ' + score + '. That is a new best.'
+      : 'Final score ' + score + '. Your best is ' + best + '.';
+    showOverlay('Washed up', msg, 'Swim again');
+  }
+
+  function step() {
+    const d = queue.length ? queue.shift() : dir;
+    dir = d;
+    const h = snake[0];
+    const nh = { x: h.x + d.x, y: h.y + d.y };
+
+    const hitWall = nh.x < 0 || nh.y < 0 || nh.x >= N || nh.y >= N;
+    const hitSelf = snake.slice(0, -1).some(s => s.x === nh.x && s.y === nh.y);
+    if (hitWall || hitSelf) { gameOver(); return; }
+
+    const old = snake.map(s => ({ x: s.x, y: s.y }));
+    snake.unshift(nh);
+    let ate = false;
+
+    if (food && nh.x === food.x && nh.y === food.y) {
+      score += 1;
+      ate = true;
+      food = spawn();
+      tickMs = Math.max(75, tickMs - 3);
+      if (!bonus && Math.random() < 0.28) {
+        const c = spawn();
+        if (c) bonus = { x: c.x, y: c.y, born: performance.now() };
+      }
+    } else if (bonus && nh.x === bonus.x && nh.y === bonus.y) {
+      score += 5;
+      ate = true;
+      bonus = null;
+    }
+
+    if (!ate) snake.pop();
+    prev = snake.map((s, i) => old[Math.min(Math.max(i - 1, 0), old.length - 1)]);
+    updateScore();
+    if (!food) gameOver();
+  }
+
+  function turn(dx, dy) {
+    if (state === 'paused') resume();
+    else if (state === 'ready') start();
+    else if (state === 'over') return;
+    if (state !== 'playing') return;
+    const last = queue.length ? queue[queue.length - 1] : dir;
+    if ((dx === last.x && dy === last.y) || (dx === -last.x && dy === -last.y)) return;
+    if (queue.length < 2) queue.push({ x: dx, y: dy });
+  }
+
+  /* ---------- input ---------- */
+  const KEYMAP = {
+    ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+    w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+    W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0]
+  };
+
+  window.addEventListener('keydown', e => {
+    const onButton = e.target && e.target.tagName === 'BUTTON';
+    if (onButton && (e.key === ' ' || e.key === 'Enter')) return;
+    if (KEYMAP[e.key]) {
+      e.preventDefault();
+      turn(KEYMAP[e.key][0], KEYMAP[e.key][1]);
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      if (state === 'playing') pause();
+      else if (state === 'paused') resume();
+      else start();
+    } else if (e.key === 'Enter' && (state === 'ready' || state === 'over')) {
+      e.preventDefault();
+      start();
+    }
+  });
+
+  ovBtn.addEventListener('click', () => {
+    if (state === 'paused') resume(); else start();
+  });
+
+  let tx = 0, ty = 0, touching = false;
+  stage.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    tx = t.clientX; ty = t.clientY; touching = true;
+  }, { passive: true });
+  stage.addEventListener('touchmove', e => {
+    if (!touching) return;
+    if (state === 'playing') e.preventDefault();
+    const t = e.touches[0];
+    const dx = t.clientX - tx, dy = t.clientY - ty;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+    if (Math.abs(dx) > Math.abs(dy)) turn(dx > 0 ? 1 : -1, 0);
+    else turn(0, dy > 0 ? 1 : -1);
+    tx = t.clientX; ty = t.clientY;
+  }, { passive: false });
+  stage.addEventListener('touchend', () => { touching = false; });
+  stage.addEventListener('touchcancel', () => { touching = false; });
+
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+  window.addEventListener('resize', resize);
+
+  /* ---------- drawing ---------- */
+  function drawBackground(dt) {
+    const g = ctx.createLinearGradient(0, 0, 0, size);
+    g.addColorStop(0, '#0e4a63');
+    g.addColorStop(1, '#041a27');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.fillStyle = 'rgba(159, 240, 227, 0.07)';
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      ctx.beginPath();
+      ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, cell * 0.04, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = 'rgba(190, 240, 235, 0.14)';
+    ctx.lineWidth = 1;
+    for (const b of bubbles) {
+      if (!reduceMotion) {
+        b.y -= b.s * dt / 1000;
+        if (b.y < -0.05) { b.y = 1.05; b.x = Math.random(); }
+      }
+      ctx.beginPath();
+      ctx.arc(b.x * size, b.y * size, b.r * cell, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function drawFood(now) {
+    if (food) {
+      const pulse = reduceMotion ? 0 : Math.sin(now / 220) * 0.035;
+      ctx.shadowColor = '#9ff0e3';
+      ctx.shadowBlur = cell * 0.8;
+      ctx.fillStyle = '#b6fff3';
+      ctx.beginPath();
+      ctx.arc((food.x + 0.5) * cell, (food.y + 0.5) * cell, cell * (0.2 + pulse), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    if (bonus) {
+      const left = Math.max(0, 1 - (now - bonus.born) / BONUS_MS);
+      const cx = (bonus.x + 0.5) * cell, cy = (bonus.y + 0.5) * cell;
+      ctx.shadowColor = '#ffc857';
+      ctx.shadowBlur = cell * 0.9;
+      ctx.fillStyle = '#ffd77f';
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.27, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255, 200, 87, 0.9)';
+      ctx.lineWidth = Math.max(2, cell * 0.07);
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * 0.42, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
+      ctx.stroke();
+    }
+  }
+
+  function drawSnake(t) {
+    const len = snake.length;
+    const pts = snake.map((s, i) => ({
+      x: (prev[i].x + (s.x - prev[i].x) * t + 0.5) * cell,
+      y: (prev[i].y + (s.y - prev[i].y) * t + 0.5) * cell
+    }));
+    const dead = state === 'over';
+    ctx.save();
+    ctx.globalAlpha = dead ? 0.55 : 1;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255, 125, 143, 0.5)';
+    ctx.shadowBlur = cell * 0.55;
+
+    const hueAt = f => 352 - 95 * f;
+    for (let i = len - 1; i >= 1; i--) {
+      const f = i / (len - 1);
+      ctx.strokeStyle = 'hsl(' + hueAt(f) + ', 88%, 66%)';
+      ctx.lineWidth = cell * (0.72 - 0.36 * f);
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x, pts[i].y);
+      ctx.lineTo(pts[i - 1].x, pts[i - 1].y);
+      ctx.stroke();
+    }
+
+    const h = pts[0];
+    ctx.fillStyle = 'hsl(352, 88%, 68%)';
+    ctx.beginPath();
+    ctx.arc(h.x, h.y, cell * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    const fx = dir.x, fy = dir.y, px = -fy, py = fx;
+    for (const side of [-1, 1]) {
+      const ex = h.x + fx * cell * 0.13 + px * side * cell * 0.17;
+      const ey = h.y + fy * cell * 0.13 + py * side * cell * 0.17;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ex, ey, cell * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1a1030';
+      ctx.beginPath();
+      ctx.arc(ex + fx * cell * 0.03, ey + fy * cell * 0.03, cell * 0.05, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(64, now - (lastFrame || now));
+    lastFrame = now;
+
+    if (state === 'playing') {
+      if (bonus && now - bonus.born > BONUS_MS) bonus = null;
+      if (now - lastTick >= tickMs) {
+        lastTick = now;
+        step();
+      }
+      if (state === 'playing') lastT = Math.min(1, (now - lastTick) / tickMs);
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawBackground(dt);
+    drawFood(state === 'paused' ? pausedAt : now);
+    drawSnake(lastT);
+  }
+
+  resize();
+  reset();
+  showOverlay('Deepline', "Guide the eel to the glowing plankton. Don't touch the walls or your own tail.", 'Start swimming');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
